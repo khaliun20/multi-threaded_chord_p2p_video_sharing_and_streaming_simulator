@@ -3,17 +3,26 @@ import json
 import threading
 
 class ChordNode:
-    def __init__(self, node_id, m=4):
-        self.node_id = node_id
+    def __init__(self, id, m):
+        self.id = id
         self.m = m
         self.finger_table = [None] * m
+        self.successor = self.finger_table[0]
         self.predecessor = None
+
+    def create_finger_table(self):
 
     def find_predecessor(self, key):
         # Simplified find_predecessor method
         pass
 
-    def find_successor(self, key):
+    def find_successor(self, id: int):
+        if self.id < id <= self.successor:
+            return self.successor
+        else:
+            n = self.closest_preceding_node(id)
+            # Assuming a method for a remote procedure call to find_successor on node n
+            return n.find_successor(id)
         # Simplified find_successor method
         pass
 
