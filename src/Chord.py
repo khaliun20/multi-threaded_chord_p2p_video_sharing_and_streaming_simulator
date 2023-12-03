@@ -3,7 +3,7 @@ import json
 import threading
 
 class ChordNode:
-    def __init__(self, id, m=4):
+    def __init__(self, id, m):
         self.id = id
         self.m = m
         self.finger_table = [None] * m

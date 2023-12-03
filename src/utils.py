@@ -1,3 +1,8 @@
+import random
+import string
+
+random_str_len = 8
+
 def binarySearch(alist, item):
     """
     binary search given alist and item to search for
@@ -19,3 +24,14 @@ def binarySearch(alist, item):
                 first = midpoint + 1
 
     return found, midpoint
+
+
+def random_string():
+    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(random_str_len))
+
+def consistent_hash(key: str, m: int):
+    return hash(key) % (2 ** m)
+
+
+
+
