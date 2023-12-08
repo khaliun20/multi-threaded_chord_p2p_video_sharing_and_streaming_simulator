@@ -10,21 +10,29 @@ class ChordNode:
         self.successor = self.finger_table[0]
         self.predecessor = None
 
-    def create_finger_table(self):
+    def create_finger_table(self): 
+        pass
 
     def find_predecessor(self, key):
         # Simplified find_predecessor method
         pass
 
+    def closest_preceding_node(self, id: int):
+        """ Search the finger table for the highest predecessor of id.
+            Note: assumes that there is no collision between finger_table[i] and id."""
+        for i in range(self.m, 0, -1):
+            if (self.finger_table[i] in range(self.id, id)): 
+                return self.finger_table[i] 
+        return self.id
+    
     def find_successor(self, id: int):
+        """Node n to find the successor of id"""
         if self.id < id <= self.successor:
             return self.successor
         else:
             n = self.closest_preceding_node(id)
             # Assuming a method for a remote procedure call to find_successor on node n
             return n.find_successor(id)
-        # Simplified find_successor method
-        pass
 
     def notify(self, new_node):
         # Simplified notify method
