@@ -1,0 +1,29 @@
+import sabre
+
+class ABR_Alg(sabre.Abr):
+    """Low oscillation"""
+    def __init__(self, config):
+        super().__init__(config)
+        self.last_quality = 0
+        self.safe_throughput = None
+        self.alpha = 0.25
+
+    def get_quality_delay(self, segment_index):
+        manifest = self.session.manifest
+        bitrates = manifest.bitrates
+        throughput = self.session.get_throughput()
+        
+        self.safe_throughput = throughput if self.safe_throughput is None else self.safe_throughput
+        self.safe_throughput = (1-self.alpha) * self.safe_throughput + self.alpha * throughput
+
+        quality = 0
+        while (quality + 1 < len(bitrates) and
+               bitrates[quality + 1] <= self.safe_throughput):
+            quality += 1
+        
+        if quality - self.last_quality > 1:
+            quality = self.last_quality + 1 
+    
+        self.last_quality = quality
+        
+        return (quality, 0)
