@@ -23,11 +23,27 @@ class ChordNode:
 
             if key <= successor_id or (key == successor_id and key == next_successor_id):
                 return (nodes[i],ports[i])
-            if key > nodes[-1]:
+            if key > nodes[-1]: # if the key is larger than the current largest node then just return the first in the list (don't know if this is correct)
                 return (nodes[0], ports[0])
 
         return (nodes[i],ports[i])
-
+    
+    def closest_preceding_node(self, key):
+    # Loop through the keys in finger_table in reverse order
+        lookup = None
+        for id in reversed(self.finger_table.keys()):
+            # If the key is between my_id and target_id
+            if key > id:
+                lookup = self.finger_table[id]
+                if lookup != None:
+                    self.send_message(lookup[0],lookup[1], {'key': key})
+                    break
+            else:
+                pass
+        if lookup == None:
+            print(f"Key is in this node", {self.id})
+            return self.id
+    
     def start_server(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind(('localhost', self.port))
@@ -42,14 +58,16 @@ class ChordNode:
     def handle_connection(self, client_socket):
         data = client_socket.recv(1024).decode('utf-8')
         message = json.loads(data)
-        print(f"Node {self.id} received message: {message}")
+        if message['key']:
+            print(f"Node {self.id} received message: {message['key']}")
+            self.closest_preceding_node(key=message['key'])
+        client_socket.close()
 
-
-    def send_message(self, dest_port, message):
+    def send_message(self, dest_node, dest_port, message):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.connect(('localhost', dest_port))
         client_socket.sendall(json.dumps(message).encode('utf-8'))
-        print(f"Node {self.id} sent message to Node {dest_port}")
+        print(f"Node {self.id} sent message to Node {dest_node}: {message}")
         client_socket.close()
 
 if __name__ == "__main__":
@@ -67,4 +85,24 @@ if __name__ == "__main__":
         print(f"Node {chord_node.id} initialized finger table: {chord_node.finger_table}")
     
     time.sleep(2)
-    chord_nodes[0].send_message(40032, "'hello':'test'")
+
+    #node 96 is looking for key 42
+    chord_nodes[3].closest_preceding_node(42)
+    
+
+  
+    #chord_nodes[4].send_message(chord_node[4].closest_preceding_node()"'key':'42'")
+
+#   The finger table for this DHT is: 
+# {16: [32, 32, 32, 32, 32, 80, 80],
+#  32: [45, 45, 45, 45, 80, 80, 96],
+#  45: [80, 80, 80, 80, 80, 80, 112],
+#  80: [96, 96, 96, 96, 96, 112, 16],
+#  96: [112, 112, 112, 112, 112, 16, 32],
+#  112: [16, 16, 16, 16, 16, 16, 80]}
+
+# File location for file key 42 is at node 45 
+
+# Query path for file 42 with origin node 80 : [80, 16, 32, 45]
+# Query path for file 42 with origin node 96 : [96, 32, 45]
+# Query path for file 42 with origin node 45 : [45]
