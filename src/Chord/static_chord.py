@@ -18,16 +18,13 @@ class ChordNode:
             entry_id = (self.id + 2**i) % (2**self.m)
             self.finger_table[entry_id] = self.find_value(nodes, ports, entry_id)
     
-    def find_value(self, nodes, ports, key):
+   def find_value(self, nodes, ports, key):
         for i in range(len(nodes)):
             successor_id = (nodes[i] + 2**self.m) % (2**self.m)
-            next_successor_id = (nodes[(i + 1) % len(nodes)] + 2**self.m) % (2**self.m)
-
-            if key <= successor_id or (key == successor_id and key == next_successor_id):
+            if key <= successor_id:
                 return (nodes[i], ports[i])
             if key > nodes[-1]:
                 return (nodes[0], ports[0])
-
         return (nodes[i], ports[i])
 
     def find_successor(self, key, origin_port):
