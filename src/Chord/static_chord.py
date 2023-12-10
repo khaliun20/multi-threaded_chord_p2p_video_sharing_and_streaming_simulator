@@ -106,21 +106,6 @@ if __name__ == "__main__":
 
     time.sleep(2)
 
-    chord_nodes[4].find_successor(92, chord_nodes[4].port)
+    chord_nodes[3].find_successor(85, chord_nodes[3].port)
 
   
-    #chord_nodes[4].send_message(chord_node[4].closest_preceding_node()"'key':'42'")
-
-#   The finger table for this DHT is: 
-# {16: [32, 32, 32, 32, 32, 80, 80],
-#  32: [45, 45, 45, 45, 80, 80, 96],
-#  45: [80, 80, 80, 80, 80, 80, 112],
-#  80: [96, 96, 96, 96, 96, 112, 16],
-#  96: [112, 112, 112, 112, 112, 16, 32],
-#  112: [16, 16, 16, 16, 16, 16, 80]}
-
-# File location for file key 42 is at node 45 
-
-# Query path for file 42 with origin node 80 : [80, 16, 32, 45]
-# Query path for file 42 with origin node 96 : [96, 32, 45]
-# Query path for file 42 with origin node 45 : [45]
