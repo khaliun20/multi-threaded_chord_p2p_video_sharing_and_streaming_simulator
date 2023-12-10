@@ -6,11 +6,12 @@ import time
 PORT = 40000
 
 class ChordNode:
-    def __init__(self, node_id, port, m):
+    def __init__(self, node_id, port, m, successor=None):
         self.id = node_id
         self.port = port
         self.finger_table = {}
         self.m = m
+        self.successor = successor
 
     def initialize_finger_table(self, nodes, ports):
         for i in range(self.m):
@@ -29,20 +30,27 @@ class ChordNode:
 
         return (nodes[i], ports[i])
 
-    def lookup_node(self, key, origin_port):
-        lookup = None
-        for id in reversed(self.finger_table.keys()):
-            if key > id:
-                #next hop: lookup = self.finger_table[id]
-                if lookup != None:
-                    threading.Thread(target=self.send_message, args=(lookup[1], {'key': key, 'origin_port': origin_port})).start()
-                    break
-            else:
-                pass
-        if lookup == None:
-            # Sends message to origin node that the key was found
-            threading.Thread(target=self.send_message, args=(origin_port, {'found': self.id})).start()
-
+    def find_successor(self, key, origin_port):
+        if self.id < key <= self.successor[0]:
+            threading.Thread(target=self.send_message, args=(origin_port, {'found': self.successor[0]})).start()
+            # TODO: send file to origin (ABR)
+        else:
+            preceding_node = self.closest_preceding_node(key)
+            threading.Thread(target=self.send_message, args=(preceding_node[1], {'key': key, 'origin_port': origin_port})).start()
+    
+    
+    def closest_preceding_node(self, key):
+        for lookup in reversed(self.finger_table.keys()):
+            node_id = self.finger_table[lookup][0]
+            #print(f'checking finger table entry: {self.finger_table[lookup]} in range {self.id} - {key}')
+            if self.id < key:
+                if self.id < node_id < key:
+                    return self.finger_table[lookup]
+            else:  # Wrap-around case
+                if node_id > self.id or node_id < key:
+                    return self.finger_table[lookup]
+        ret_tup = (self.id, self.port)
+        return ret_tup
 
     def start_server(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -61,7 +69,7 @@ class ChordNode:
         message = json.loads(data)
         if message.get('key'):
             print(f"Node {self.id} received message: {message['key']}")
-            self.lookup_node(key=message['key'], origin_port=message['origin_port']) 
+            self.find_successor(key=message['key'], origin_port=message['origin_port']) 
 
         elif message.get('found'):
             print(f"Node {self.id} received found message. The file is in node: {message['found']}")
@@ -81,19 +89,24 @@ if __name__ == "__main__":
 
     chord_nodes = []
 
-    for node_id, port in zip(nodes, ports):
-        chord_node = ChordNode(node_id, port, m)
+    for i in range(len(nodes)):
+        node_id = nodes[i]
+        port = ports[i]
+        if i == len(nodes) - 1:
+            successor = (nodes[0], ports[0])
+        else:
+            successor = (nodes[i + 1], ports[i + 1])
+        print(f"Node {node_id} successor is {successor}")
+
+        chord_node = ChordNode(node_id, port, m, successor)
         chord_node.initialize_finger_table(nodes, ports)
         threading.Thread(target=chord_node.start_server).start()
         chord_nodes.append(chord_node)
         print(f"Node {chord_node.id} initialized finger table: {chord_node.finger_table}")
-    
+
     time.sleep(2)
 
-    # node 96 is looking for key 42
-    chord_nodes[4].lookup_node(42, chord_nodes[4].port)
-
-    
+    chord_nodes[4].find_successor(92, chord_nodes[4].port)
 
   
     #chord_nodes[4].send_message(chord_node[4].closest_preceding_node()"'key':'42'")
