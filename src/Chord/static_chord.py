@@ -21,13 +21,10 @@ class ChordNode:
     def find_value(self, nodes, ports, key):
         for i in range(len(nodes)):
             successor_id = (nodes[i] + 2**self.m) % (2**self.m)
-            next_successor_id = (nodes[(i + 1) % len(nodes)] + 2**self.m) % (2**self.m)
-
-            if key <= successor_id or (key == successor_id and key == next_successor_id):
+            if key <= successor_id:
                 return (nodes[i], ports[i])
             if key > nodes[-1]:
                 return (nodes[0], ports[0])
-
         return (nodes[i], ports[i])
 
     def find_successor(self, key, origin_port):
@@ -65,14 +62,22 @@ class ChordNode:
 
     def handle_connection(self, client_socket, addr):
         client_ip, client_port = addr
-        data = client_socket.recv(1024).decode('utf-8')
-        message = json.loads(data)
-        if message.get('key'):
-            print(f"Node {self.id} received message: {message['key']}")
-            self.find_successor(key=message['key'], origin_port=message['origin_port']) 
+        while True: 
+            data = client_socket.recv(1024).decode('utf-8')
+            if not data:
+                break
+            message = json.loads(data)
+            if message.get('key'):
+                print(f"Node {self.id} received message: {message['key']}")
+                self.find_successor(key=message['key'], origin_port=message['origin_port']) 
 
-        elif message.get('found'):
-            print(f"Node {self.id} received found message. The file is in node: {message['found']}")
+            elif message.get('found'):
+                print(f"Node {self.id} received found message. The file is in node: {message['found']}")
+
+            elif message.get('video'): 
+                # process the vdeo (data) 
+                pass
+            
         client_socket.close()
 
     def send_message(self, dest_port, message):
