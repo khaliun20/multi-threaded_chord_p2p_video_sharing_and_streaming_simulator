@@ -3,6 +3,7 @@ import json
 import threading
 from pprint import pprint
 import time
+PORT = 40000
 
 class ChordNode:
     def __init__(self, node_id, port, m):
@@ -22,28 +23,27 @@ class ChordNode:
             next_successor_id = (nodes[(i + 1) % len(nodes)] + 2**self.m) % (2**self.m)
 
             if key <= successor_id or (key == successor_id and key == next_successor_id):
-                return (nodes[i],ports[i])
-            if key > nodes[-1]: # if the key is larger than the current largest node then just return the first in the list (don't know if this is correct)
+                return (nodes[i], ports[i])
+            if key > nodes[-1]:
                 return (nodes[0], ports[0])
 
-        return (nodes[i],ports[i])
-    
-    def closest_preceding_node(self, key):
-    # Loop through the keys in finger_table in reverse order
+        return (nodes[i], ports[i])
+
+    def lookup_node(self, key, origin_port):
         lookup = None
         for id in reversed(self.finger_table.keys()):
-            # If the key is between my_id and target_id
             if key > id:
-                lookup = self.finger_table[id]
+                #next hop: lookup = self.finger_table[id]
                 if lookup != None:
-                    self.send_message(lookup[0],lookup[1], {'key': key})
+                    threading.Thread(target=self.send_message, args=(lookup[1], {'key': key, 'origin_port': origin_port})).start()
                     break
             else:
                 pass
         if lookup == None:
-            print(f"Key is in this node", {self.id})
-            return self.id
-    
+            # Sends message to origin node that the key was found
+            threading.Thread(target=self.send_message, args=(origin_port, {'found': self.id})).start()
+
+
     def start_server(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind(('localhost', self.port))
@@ -53,26 +53,30 @@ class ChordNode:
 
         while True:
             client_socket, addr = server_socket.accept()
-            threading.Thread(target=self.handle_connection, args=(client_socket,)).start()
+            threading.Thread(target=self.handle_connection, args=(client_socket, addr)).start()
 
-    def handle_connection(self, client_socket):
+    def handle_connection(self, client_socket, addr):
+        client_ip, client_port = addr
         data = client_socket.recv(1024).decode('utf-8')
         message = json.loads(data)
-        if message['key']:
+        if message.get('key'):
             print(f"Node {self.id} received message: {message['key']}")
-            self.closest_preceding_node(key=message['key'])
+            self.lookup_node(key=message['key'], origin_port=message['origin_port']) 
+
+        elif message.get('found'):
+            print(f"Node {self.id} received found message. The file is in node: {message['found']}")
         client_socket.close()
 
-    def send_message(self, dest_node, dest_port, message):
+    def send_message(self, dest_port, message):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.connect(('localhost', dest_port))
         client_socket.sendall(json.dumps(message).encode('utf-8'))
-        print(f"Node {self.id} sent message to Node {dest_node}: {message}")
+        print(f"Node {self.id} sent message to Node {dest_port - PORT}: {message}")
         client_socket.close()
 
 if __name__ == "__main__":
     nodes = [16, 32, 45, 80, 96, 112]
-    ports = [40000 + node_id for node_id in nodes]
+    ports = [PORT + node_id for node_id in nodes]
     m = 7
 
     chord_nodes = []
@@ -86,8 +90,9 @@ if __name__ == "__main__":
     
     time.sleep(2)
 
-    #node 96 is looking for key 42
-    chord_nodes[3].closest_preceding_node(42)
+    # node 96 is looking for key 42
+    chord_nodes[4].lookup_node(42, chord_nodes[4].port)
+
     
 
   
