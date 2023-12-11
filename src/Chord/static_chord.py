@@ -117,7 +117,7 @@ class ChordNode_WithVideo(ChordNode):
         
     def play_video(self):
         try:
-            command_to_run = ["python3", "/home/km632/514/final_proj/ABR_in_Chord/src/ABR/sabre.py"]
+            command_to_run = ["python3", "../ABR/sabre.py"]
             result = subprocess.run(command_to_run, capture_output=True, text=True)
             if result.returncode == 0:
                 print(result.stdout)

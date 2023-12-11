@@ -1273,12 +1273,12 @@ class ReplacementInput(Replacement):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Simulate an ABR session.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-n', '--network', metavar='NETWORK', default='network.json',
+    parser.add_argument('-n', '--network', metavar='NETWORK', default='../ABR/network.json',
                         help='Specify the .json file describing the network trace.')
     parser.add_argument('-nm', '--network-multiplier', metavar='MULTIPLIER',
                         type=float, default=1,
                         help='Multiply throughput by MULTIPLIER.')
-    parser.add_argument('-m', '--movie', metavar='MOVIE', default='movie.json',
+    parser.add_argument('-m', '--movie', metavar='MOVIE', default='../ABR/videos/big_buck_bunny.json',
                         help='Specify the .json file describing the movie chunks.')
     parser.add_argument('-ml', '--movie-length', metavar='LEN', type=float, default=None,
                         help='Specify the movie length in seconds (use MOVIE length if None).')
