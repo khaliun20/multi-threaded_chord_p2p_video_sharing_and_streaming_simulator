@@ -6,9 +6,9 @@ import time
 PORT = 40000
 
 class Video:
-    def __init__(self, file_hash, title):
-        self.title = title
+    def __init__(self, file_hash, file_path):
         self.file_hash = file_hash
+        self.file_path = file_path
 
 
 class ChordNode:
@@ -101,10 +101,10 @@ class ChordNode:
         client_socket.close()
 
 class ChordNode_WithVideo(ChordNode):
-    def __init__(self, node_id, port, m, successor=None, video_hash = None, video_title = None):
+    def __init__(self, node_id, port, m, successor=None, video_hash = None, video_path = None):
         super().__init__(node_id, port, m, successor)
 
-        self.video = Video(video_hash, video_title)
+        self.video = Video(video_hash, video_path)
         
     def play_video(self, filename):
         pass
@@ -123,9 +123,9 @@ if __name__ == "__main__":
     nodes = [16, 32, 45, 80, 96, 112]
     ports = [PORT + node_id for node_id in nodes]
     m = 7
-    node_with_video = 80
-    hash_of_video = 83
-    video_title = "video.mp4"
+    node_with_video = 45
+    file_hash = 42
+    file_path = "video.mp4"
     ##############################################
 
 
@@ -143,8 +143,8 @@ if __name__ == "__main__":
         
         # Pick the node with the file. Here we pick node 80
         if node_id == node_with_video:
-            chord_node = ChordNode_WithVideo(node_id, port, m, successor, hash_of_video, video_title)
-            print(chord_node.video.title)
+            chord_node = ChordNode_WithVideo(node_id, port, m, successor, file_hash, file_path)
+            print(chord_node.video.file_path)
             print(chord_node.video.file_hash)
             
         else:
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     time.sleep(2)
 
     # Simulation starts here
-    chord_nodes[5].find_successor(43, chord_nodes[5].port)
+    chord_nodes[5].find_successor(file_hash, chord_nodes[5].port)
 
     # create anothe class that inherits from ChordNode
     # the node with instaniated from this class will be the node with file
