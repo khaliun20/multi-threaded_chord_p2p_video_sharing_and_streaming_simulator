@@ -5,6 +5,12 @@ from pprint import pprint
 import time
 PORT = 40000
 
+class Video:
+    def __init__(self, file_hash, title):
+        self.title = title
+        self.file_hash = file_hash
+
+
 class ChordNode:
     def __init__(self, node_id, port, m, successor=None):
         self.id = node_id
@@ -18,6 +24,7 @@ class ChordNode:
             entry_id = (self.id + 2**i) % (2**self.m)
             self.finger_table[entry_id] = self.find_value(nodes, ports, entry_id)
     
+    # Populate finger table of new node
     def find_value(self, nodes, ports, key):
         for i in range(len(nodes)):
             successor_id = (nodes[i] + 2**self.m) % (2**self.m)
@@ -26,7 +33,8 @@ class ChordNode:
             if key > nodes[-1]:
                 return (nodes[0], ports[0])
         return (nodes[i], ports[i])
-
+    
+    # Note: I think this is able to identify a file between 16 and 112, not 0 and 2^7. 
     def find_successor(self, key, origin_port):
         if self.id < key <= self.successor[0]:
             threading.Thread(target=self.send_message, args=(origin_port, {'found': self.successor[0]})).start()
@@ -56,10 +64,12 @@ class ChordNode:
 
         print(f"Node {self.id} listening on port {self.port}")
 
+        # Lets node severs run forever
         while True:
             client_socket, addr = server_socket.accept()
             threading.Thread(target=self.handle_connection, args=(client_socket, addr)).start()
 
+    # Once the communication is established, handle the connection and close it asap 
     def handle_connection(self, client_socket, addr):
         client_ip, client_port = addr
         while True: 
@@ -77,9 +87,12 @@ class ChordNode:
             elif message.get('video'): 
                 # process the vdeo (data) 
                 pass
+            else:
+                pass
             
         client_socket.close()
-
+    
+    # Send message to other nodes. Sends message and close the connection asap
     def send_message(self, dest_port, message):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.connect(('localhost', dest_port))
@@ -87,13 +100,38 @@ class ChordNode:
         print(f"Node {self.id} sent message to Node {dest_port - PORT}: {message}")
         client_socket.close()
 
+class ChordNode_WithVideo(ChordNode):
+    def __init__(self, node_id, port, m, successor=None, video_hash = None, video_title = None):
+        super().__init__(node_id, port, m, successor)
+
+        self.video = Video(video_hash, video_title)
+        
+    def play_video(self, filename):
+        pass
+
+    def produce_json_to_send(self, filename):
+        pass
+
+    def send_video(self, dest_port, message):
+        pass
+
+
 if __name__ == "__main__":
+    
+    ################ Placeholder ###############
+    # We can make the nodes CLI later on
     nodes = [16, 32, 45, 80, 96, 112]
     ports = [PORT + node_id for node_id in nodes]
     m = 7
+    node_with_video = 80
+    hash_of_video = 83
+    video_title = "video.mp4"
+    ##############################################
+
 
     chord_nodes = []
 
+    # Initialize nodes
     for i in range(len(nodes)):
         node_id = nodes[i]
         port = ports[i]
@@ -102,15 +140,29 @@ if __name__ == "__main__":
         else:
             successor = (nodes[i + 1], ports[i + 1])
         print(f"Node {node_id} successor is {successor}")
-
-        chord_node = ChordNode(node_id, port, m, successor)
+        
+        # Pick the node with the file. Here we pick node 80
+        if node_id == node_with_video:
+            chord_node = ChordNode_WithVideo(node_id, port, m, successor, hash_of_video, video_title)
+            print(chord_node.video.title)
+            print(chord_node.video.file_hash)
+            
+        else:
+            chord_node = ChordNode(node_id, port, m, successor)
         chord_node.initialize_finger_table(nodes, ports)
+        print(f"Node {chord_node.id} initialized finger table: {chord_node.finger_table}")
+        
+        # Start nodes
         threading.Thread(target=chord_node.start_server).start()
         chord_nodes.append(chord_node)
-        print(f"Node {chord_node.id} initialized finger table: {chord_node.finger_table}")
+    
 
     time.sleep(2)
 
-    chord_nodes[3].find_successor(85, chord_nodes[3].port)
+    # Simulation starts here
+    chord_nodes[5].find_successor(43, chord_nodes[5].port)
 
-  
+    # create anothe class that inherits from ChordNode
+    # the node with instaniated from this class will be the node with file
+    # create another class valled video 
+   
