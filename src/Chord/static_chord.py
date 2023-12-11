@@ -3,6 +3,12 @@ import json
 import threading
 from pprint import pprint
 import time
+import subprocess
+
+
+
+
+
 PORT = 40000
 
 class Video:
@@ -39,6 +45,9 @@ class ChordNode:
         if self.id < key <= self.successor[0]:
             threading.Thread(target=self.send_message, args=(origin_port, {'found': self.successor[0]})).start()
             # TODO: send file to origin (ABR)
+            # self.video_play()
+            # self.send_video_result(origin_port)
+            # send.send_video(self, origin_port)
         else:
             preceding_node = self.closest_preceding_node(key)
             threading.Thread(target=self.send_message, args=(preceding_node[1], {'key': key, 'origin_port': origin_port})).start()
@@ -106,14 +115,30 @@ class ChordNode_WithVideo(ChordNode):
 
         self.video = Video(video_hash, video_path)
         
-    def play_video(self, filename):
+    def play_video(self):
+        try:
+            command_to_run = ["python3", "/home/km632/514/final_proj/ABR_in_Chord/src/ABR/sabre.py"]
+            result = subprocess.run(command_to_run, capture_output=True, text=True)
+            if result.returncode == 0:
+                print(result.stdout)
+            else:
+                print(f"Error running subprocess. Exit code: {result.returncode}")
+                print(result.stderr)
+
+
+        except Exception as e:
+            print(e)
+
+    def produce_json_to_send(self):
+        pass
+    
+    def send_video(self, dest_port):
+        # filepath = ABR.Chord
+        # create socket connection 
+        # send video file to dest_port
+
         pass
 
-    def produce_json_to_send(self, filename):
-        pass
-
-    def send_video(self, dest_port, message):
-        pass
 
 
 if __name__ == "__main__":
@@ -146,6 +171,8 @@ if __name__ == "__main__":
             chord_node = ChordNode_WithVideo(node_id, port, m, successor, file_hash, file_path)
             print(chord_node.video.file_path)
             print(chord_node.video.file_hash)
+            chord_node.play_video()
+
             
         else:
             chord_node = ChordNode(node_id, port, m, successor)
@@ -162,7 +189,4 @@ if __name__ == "__main__":
     # Simulation starts here
     chord_nodes[5].find_successor(file_hash, chord_nodes[5].port)
 
-    # create anothe class that inherits from ChordNode
-    # the node with instaniated from this class will be the node with file
-    # create another class valled video 
    
