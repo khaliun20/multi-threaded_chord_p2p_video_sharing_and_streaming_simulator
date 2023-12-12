@@ -116,18 +116,10 @@ class ChordNode_WithVideo(ChordNode):
         self.video = Video(video_hash, video_path)
         
     def play_video(self):
-        try:
-            command_to_run = ["python3", "/home/km632/514/final_proj/ABR_in_Chord/src/ABR/sabre.py"]
-            result = subprocess.run(command_to_run, capture_output=True, text=True)
-            if result.returncode == 0:
-                print(result.stdout)
-            else:
-                print(f"Error running subprocess. Exit code: {result.returncode}")
-                print(result.stderr)
-
-
-        except Exception as e:
-            print(e)
+        from ..ABR.sabre import run_sabre
+        from ..ABR.sabreArgs import SabreArgs
+        sabre_args = SabreArgs()
+        run_sabre(sabre_args)
 
     def produce_json_to_send(self):
         pass
