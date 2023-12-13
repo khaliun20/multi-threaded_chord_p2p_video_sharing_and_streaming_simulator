@@ -47,6 +47,328 @@ from enum import Enum
 #     rebuffer event count
 #     rebuffer total time
 #     session info
+verbose = False
+
+def run_sabre(args):
+    print("Running sabre with args", args)
+    global manifest
+    global buffer_contents
+    global buffer_fcc
+    global vervose
+    global played_queue
+    global played_utility
+    global played_bitrate
+    global last_played
+    global rampup_time
+    global rampup_threshold
+    global pending_quality_up
+    global total_play_time
+    global max_buffer_size
+    global total_bitrate_change
+    global total_log_bitrate_change
+    global rampup_origin
+    verbose = args.verbose
+
+    buffer_contents = []
+    buffer_fcc = 0
+    pending_quality_up = []
+    reaction_metrics = []
+
+    rebuffer_event_count = 0
+    rebuffer_time = 0
+    played_utility = 0
+    played_bitrate = 0
+    total_play_time = 0
+    total_bitrate_change = 0
+    total_log_bitrate_change = 0
+    total_reaction_time = 0
+    last_played = None
+
+    overestimate_count = 0
+    overestimate_average = 0
+    goodestimate_count = 0
+    goodestimate_average = 0
+    estimate_average = 0
+
+    rampup_origin = 0
+    rampup_time = None
+    rampup_threshold = args.rampup_threshold
+
+    max_buffer_size = args.max_buffer * 1000
+
+    played_queue = []
+    
+    manifest = load_json(args.movie)
+    bitrates = manifest['bitrates_kbps']
+    utility_offset = 0 - math.log(bitrates[0])  # so utilities[0] = 0
+    utilities = [math.log(b) + utility_offset for b in bitrates]
+    if args.movie_length != None:
+        l1 = len(manifest['segment_sizes_bits'])
+        l2 = math.ceil(args.movie_length * 1000 / manifest['segment_duration_ms'])
+        manifest['segment_sizes_bits'] *= math.ceil(l2 / l1)
+        manifest['segment_sizes_bits'] = manifest['segment_sizes_bits'][0:l2]
+    manifest = ManifestInfo(segment_time=manifest['segment_duration_ms'],
+                            bitrates=bitrates,
+                            utilities=utilities,
+                            segments=manifest['segment_sizes_bits'])
+    SessionInfo.manifest = manifest
+
+    network_trace = load_json(args.network)
+    network_trace = [NetworkPeriod(time=p['duration_ms'],
+                                   bandwidth=p['bandwidth_kbps'] * args.network_multiplier,
+                                   latency=p['latency_ms'])
+                     for p in network_trace]
+
+    buffer_size = args.max_buffer * 1000
+    gamma_p = args.gamma_p
+
+    config = {'buffer_size': buffer_size,
+              'gp': gamma_p,
+              'abr_osc': args.abr_osc,
+              'abr_basic': args.abr_basic,
+              'no_ibr': args.no_insufficient_buffer_rule}
+    if args.abr[-3:] == '.py':
+        abr = AbrInput(args.abr, config)
+    else:
+        abr_list[args.abr].use_abr_o = args.abr_osc
+        abr_list[args.abr].use_abr_u = not args.abr_osc
+        abr = abr_list[args.abr](config)
+    network = NetworkModel(network_trace)
+
+    if args.replace[-3:] == '.py':
+        replacer = ReplacementInput(args.replace)
+    if args.replace == 'left':
+        replacer = Replace(0)
+    elif args.replace == 'right':
+        replacer = Replace(1)
+    else:
+        replacer = NoReplace()
+
+    config = {'window_size': args.window_size, 'half_life': args.half_life}
+    throughput_history = average_list[args.moving_average](config)
+
+    # download first segment
+    quality = abr.get_first_quality()
+    size = manifest.segments[0][quality]
+    download_metric = network.download(size, 0, quality, 0)
+    download_time = download_metric.time - download_metric.time_to_first_bit
+    startup_time = download_time
+    buffer_contents.append(download_metric.quality)
+    t = download_metric.size / download_time
+    l = download_metric.time_to_first_bit
+    throughput_history.push(download_time, t, l)
+    # print('%d,%d -> %d,%d' % (t, l, throughput, latency))
+    total_play_time += download_metric.time
+
+    if verbose:
+        print('[%d-%d]  %d: q=%d s=%d/%d t=%d=%d+%d bl=0->0->%d' %
+              (0, round(download_metric.time), 0, download_metric.quality,
+               download_metric.downloaded, download_metric.size,
+               download_metric.time, download_metric.time_to_first_bit,
+               download_metric.time - download_metric.time_to_first_bit,
+               get_buffer_level()))
+
+    # download rest of segments
+    next_segment = 1
+    abandoned_to_quality = None
+    while next_segment < len(manifest.segments):
+
+        # TODO: BEGIN TODO: reimplement seeking - currently only proof-of-concept hack
+        if args.seek != None:
+            if next_segment * manifest.segment_time >= 1000 * args.seek[0]:
+                next_segment = math.floor(1000 * args.seek[1] / manifest.segment_time)
+                buffer_contents = []
+                buffer_fcc = 0
+                abr.report_seek(1000 * args.seek[1])
+                args.seek = None
+                rampup_origin = total_play_time
+                rampup_time = None
+        # TODO:  END TODO:  reimplement seeking - currently only proof-of-concept hack
+
+        # do we have space for a new segment on the buffer?
+        full_delay = get_buffer_level() + manifest.segment_time - buffer_size
+        if full_delay > 0:
+            deplete_buffer(full_delay)
+            network.delay(full_delay)
+            abr.report_delay(full_delay)
+            if verbose:
+                print('full buffer delay %d bl=%d' % (full_delay, get_buffer_level()))
+
+        if abandoned_to_quality == None:
+            (quality, delay) = abr.get_quality_delay(next_segment)
+            replace = replacer.check_replace(quality)
+        else:
+            (quality, delay) = (abandoned_to_quality, 0)
+            replace = None
+            abandon_to_quality = None
+
+        if replace != None:
+            delay = 0
+            current_segment = next_segment + replace
+            check_abandon = replacer.check_abandon
+        else:
+            current_segment = next_segment
+            check_abandon = abr.check_abandon
+        if args.no_abandon:
+            check_abandon = None
+
+        size = manifest.segments[current_segment][quality]
+
+        if delay > 0:
+            deplete_buffer(delay)
+            network.delay(delay)
+            if verbose:
+                print('abr delay %d bl=%d' % (delay, get_buffer_level()))
+
+        # print('size %d, current_segment %d, quality %d, buffer_level %d' %
+        #      (size, current_segment, quality, get_buffer_level()))
+
+        download_metric = network.download(size, current_segment, quality,
+                                           get_buffer_level(), check_abandon)
+
+        # print('index %d, quality %d, downloaded %d/%d, time %d=%d+.' %
+        #      (download_metric.index, download_metric.quality,
+        #       download_metric.downloaded, download_metric.size,
+        #       download_metric.time, download_metric.time_to_first_bit))
+
+        if verbose:
+            print('[%d-%d]  %d: q=%d s=%d/%d t=%d=%d+%d ' %
+                  (round(total_play_time), round(total_play_time + download_metric.time),
+                   current_segment, download_metric.quality,
+                   download_metric.downloaded, download_metric.size,
+                   download_metric.time, download_metric.time_to_first_bit,
+                   download_metric.time - download_metric.time_to_first_bit),
+                  end='')
+            if replace == None:
+                if download_metric.abandon_to_quality == None:
+                    print('bl=%d' % get_buffer_level(), end='')
+                else:
+                    print(' ABANDONED to %d - %d/%d bits in %d=%d+%d ttfb+ttdl  bl=%d' %
+                          (download_metric.abandon_to_quality,
+                           download_metric.downloaded, download_metric.size,
+                           download_metric.time, download_metric.time_to_first_bit,
+                           download_metric.time - download_metric.time_to_first_bit,
+                           get_buffer_level()),
+                          end='')
+            else:
+                if download_metric.abandon_to_quality == None:
+                    print(' REPLACEMENT  bl=%d' % get_buffer_level(), end='')
+                else:
+                    print(' REPLACMENT ABANDONED after %d=%d+%d ttfb+ttdl  bl=%d' %
+                          (download_metric.time, download_metric.time_to_first_bit,
+                           download_metric.time - download_metric.time_to_first_bit,
+                           get_buffer_level()),
+                          end='')
+
+        # print('deplete buffer %d' % download_metric.time)
+        deplete_buffer(download_metric.time)
+        if verbose:
+            print('->%d' % get_buffer_level(), end='')
+
+        # update buffer with new download
+        if replace == None:
+            if download_metric.abandon_to_quality == None:
+                buffer_contents += [quality]
+                next_segment += 1
+            else:
+                abandon_to_quality = download_metric.abandon_to_quality
+        else:
+            # abandon_to_quality == None
+            if download_metric.abandon_to_quality == None:
+                if get_buffer_level() + manifest.segment_time * replace >= 0:
+                    buffer_contents[replace] = quality
+                else:
+                    print('WARNING: too late to replace')
+                    pass
+            else:
+                pass
+            # else: do nothing because segment abandonment does not suggest new download
+
+        # if rampup_time == None and download_metric.abandon_to_quality == None:
+        #    if rampup_threshold == None:
+        #        if download_metric.quality >= sustainable_quality:
+        #            rampup_time = download_metric.index * manifest.segment_time
+        #    else:
+        #        if download_metric.quality >= rampup_threshold:
+        #            rampup_time = download_metric.index * manifest.segment_time
+
+        if verbose:
+            print('->%d' % get_buffer_level())
+
+        abr.report_download(download_metric, replace != None)
+
+        # calculate throughput and latency
+        download_time = download_metric.time - download_metric.time_to_first_bit
+        t = download_metric.downloaded / download_time
+        l = download_metric.time_to_first_bit
+
+        # check accuracy of throughput estimate
+        if throughput > t:
+            overestimate_count += 1
+            overestimate_average += (throughput - t - overestimate_average) / overestimate_count
+        else:
+            goodestimate_count += 1
+            goodestimate_average += (t - throughput - goodestimate_average) / goodestimate_count
+        estimate_average += ((throughput - t - estimate_average) /
+                             (overestimate_count + goodestimate_count))
+
+        # update throughput estimate
+        if download_metric.abandon_to_quality == None:
+            throughput_history.push(download_time, t, l)
+
+        # loop while next_segment < len(manifest.segments)
+
+    playout_buffer()
+
+    # multiply by to_time_average to get per/chunk average
+    to_time_average = 1 / (total_play_time / manifest.segment_time)
+    count = len(manifest.segments)
+    time = count * manifest.segment_time + rebuffer_time + startup_time
+    print('buffer size: %d' % buffer_size)
+    print('total played utility: %f' % played_utility)
+    print('time average played utility: %f' % (played_utility * to_time_average))
+    print('total played bitrate: %f' % played_bitrate)
+    print('time average played bitrate: %f' % (played_bitrate * to_time_average))
+    print('total play time: %f' % (total_play_time / 1000))
+    print('total play time chunks: %f' % (total_play_time / manifest.segment_time))
+    print('total rebuffer: %f' % (rebuffer_time / 1000))
+    print('rebuffer ratio: %f' % (rebuffer_time / total_play_time))
+    print('time average rebuffer: %f' % (rebuffer_time / 1000 * to_time_average))
+    print('total rebuffer events: %f' % rebuffer_event_count)
+    print('time average rebuffer events: %f' % (rebuffer_event_count * to_time_average))
+    print('total bitrate change: %f' % total_bitrate_change)
+    print('time average bitrate change: %f' % (total_bitrate_change * to_time_average))
+    print('total log bitrate change: %f' % total_log_bitrate_change)
+    print('time average log bitrate change: %f' % (total_log_bitrate_change * to_time_average))
+    print('time average score: %f' %
+          (to_time_average * (played_utility -
+                              args.gamma_p * rebuffer_time / manifest.segment_time)))
+    if overestimate_count == 0:
+        print('over estimate count: 0')
+        print('over estimate: 0')
+    else:
+        print('over estimate count: %d' % overestimate_count)
+        print('over estimate: %f' % overestimate_average)
+    if goodestimate_count == 0:
+        print('leq estimate count: 0')
+        print('leq estimate: 0')
+    else:
+        print('leq estimate count: %d' % goodestimate_count)
+        print('leq estimate: %f' % goodestimate_average)
+    print('estimate: %f' % estimate_average)
+    if rampup_time == None:
+        print('rampup time: %f' % (len(manifest.segments) * manifest.segment_time / 1000))
+    else:
+        print('rampup time: %f' % (rampup_time / 1000))
+    print('total reaction time: %f' % (total_reaction_time / 1000))
+    print('played queue:', played_queue)
+    osc_sum = 0
+    curr_ele = played_queue[0]
+    for each in played_queue:
+        osc_sum += (each - curr_ele) ** 2
+        curr_ele = each
+    print('oscillation:', osc_sum)
+
 
 
 def load_json(path):
@@ -512,7 +834,6 @@ class Abr:
             quality += 1
         return quality
 
-
 class Replacement:
     session = session_info
 
@@ -526,6 +847,35 @@ class Replacement:
 average_list = {}
 abr_list = {}
 
+class ABR_Alg(Abr):
+    """Low oscillation"""
+    def __init__(self, config):
+        super().__init__(config)
+        self.last_quality = 0
+        self.safe_throughput = None
+        self.alpha = 0.25
+
+    def get_quality_delay(self, segment_index):
+        manifest = self.session.manifest
+        bitrates = manifest.bitrates
+        throughput = self.session.get_throughput()
+        
+        self.safe_throughput = throughput if self.safe_throughput is None else self.safe_throughput
+        self.safe_throughput = (1-self.alpha) * self.safe_throughput + self.alpha * throughput
+
+        quality = 0
+        while (quality + 1 < len(bitrates) and
+               bitrates[quality + 1] <= self.safe_throughput):
+            quality += 1
+        
+        if quality - self.last_quality > 1:
+            quality = self.last_quality + 1 
+    
+        self.last_quality = quality
+        
+        return (quality, 0)
+
+abr_list['custom'] = ABR_Alg
 
 class SlidingWindow(ThroughputHistory):
     default_window_size = [3]
@@ -1273,12 +1623,12 @@ class ReplacementInput(Replacement):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Simulate an ABR session.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-n', '--network', metavar='NETWORK', default='../ABR/network.json',
+    parser.add_argument('-n', '--network', metavar='NETWORK', default='network.json',
                         help='Specify the .json file describing the network trace.')
     parser.add_argument('-nm', '--network-multiplier', metavar='MULTIPLIER',
                         type=float, default=1,
                         help='Multiply throughput by MULTIPLIER.')
-    parser.add_argument('-m', '--movie', metavar='MOVIE', default='../ABR/videos/big_buck_bunny.json',
+    parser.add_argument('-m', '--movie', metavar='MOVIE', default='video1.json',
                         help='Specify the .json file describing the movie chunks.')
     parser.add_argument('-ml', '--movie-length', metavar='LEN', type=float, default=None,
                         help='Specify the movie length in seconds (use MOVIE length if None).')
@@ -1325,304 +1675,4 @@ if __name__ == '__main__':
                         help='Run in verbose mode.')
     args = parser.parse_args()
 
-    verbose = args.verbose
-
-    buffer_contents = []
-    buffer_fcc = 0
-    pending_quality_up = []
-    reaction_metrics = []
-
-    rebuffer_event_count = 0
-    rebuffer_time = 0
-    played_utility = 0
-    played_bitrate = 0
-    total_play_time = 0
-    total_bitrate_change = 0
-    total_log_bitrate_change = 0
-    total_reaction_time = 0
-    last_played = None
-
-    overestimate_count = 0
-    overestimate_average = 0
-    goodestimate_count = 0
-    goodestimate_average = 0
-    estimate_average = 0
-
-    rampup_origin = 0
-    rampup_time = None
-    rampup_threshold = args.rampup_threshold
-
-    max_buffer_size = args.max_buffer * 1000
-
-    played_queue = []
-
-    manifest = load_json(args.movie)
-    bitrates = manifest['bitrates_kbps']
-    utility_offset = 0 - math.log(bitrates[0])  # so utilities[0] = 0
-    utilities = [math.log(b) + utility_offset for b in bitrates]
-    if args.movie_length != None:
-        l1 = len(manifest['segment_sizes_bits'])
-        l2 = math.ceil(args.movie_length * 1000 / manifest['segment_duration_ms'])
-        manifest['segment_sizes_bits'] *= math.ceil(l2 / l1)
-        manifest['segment_sizes_bits'] = manifest['segment_sizes_bits'][0:l2]
-    manifest = ManifestInfo(segment_time=manifest['segment_duration_ms'],
-                            bitrates=bitrates,
-                            utilities=utilities,
-                            segments=manifest['segment_sizes_bits'])
-    SessionInfo.manifest = manifest
-
-    network_trace = load_json(args.network)
-    network_trace = [NetworkPeriod(time=p['duration_ms'],
-                                   bandwidth=p['bandwidth_kbps'] * args.network_multiplier,
-                                   latency=p['latency_ms'])
-                     for p in network_trace]
-
-    buffer_size = args.max_buffer * 1000
-    gamma_p = args.gamma_p
-
-    config = {'buffer_size': buffer_size,
-              'gp': gamma_p,
-              'abr_osc': args.abr_osc,
-              'abr_basic': args.abr_basic,
-              'no_ibr': args.no_insufficient_buffer_rule}
-    if args.abr[-3:] == '.py':
-        abr = AbrInput(args.abr, config)
-    else:
-        abr_list[args.abr].use_abr_o = args.abr_osc
-        abr_list[args.abr].use_abr_u = not args.abr_osc
-        abr = abr_list[args.abr](config)
-    network = NetworkModel(network_trace)
-
-    if args.replace[-3:] == '.py':
-        replacer = ReplacementInput(args.replace)
-    if args.replace == 'left':
-        replacer = Replace(0)
-    elif args.replace == 'right':
-        replacer = Replace(1)
-    else:
-        replacer = NoReplace()
-
-    config = {'window_size': args.window_size, 'half_life': args.half_life}
-    throughput_history = average_list[args.moving_average](config)
-
-    # download first segment
-    quality = abr.get_first_quality()
-    size = manifest.segments[0][quality]
-    download_metric = network.download(size, 0, quality, 0)
-    download_time = download_metric.time - download_metric.time_to_first_bit
-    startup_time = download_time
-    buffer_contents.append(download_metric.quality)
-    t = download_metric.size / download_time
-    l = download_metric.time_to_first_bit
-    throughput_history.push(download_time, t, l)
-    # print('%d,%d -> %d,%d' % (t, l, throughput, latency))
-    total_play_time += download_metric.time
-
-    if verbose:
-        print('[%d-%d]  %d: q=%d s=%d/%d t=%d=%d+%d bl=0->0->%d' %
-              (0, round(download_metric.time), 0, download_metric.quality,
-               download_metric.downloaded, download_metric.size,
-               download_metric.time, download_metric.time_to_first_bit,
-               download_metric.time - download_metric.time_to_first_bit,
-               get_buffer_level()))
-
-    # download rest of segments
-    next_segment = 1
-    abandoned_to_quality = None
-    while next_segment < len(manifest.segments):
-
-        # TODO: BEGIN TODO: reimplement seeking - currently only proof-of-concept hack
-        if args.seek != None:
-            if next_segment * manifest.segment_time >= 1000 * args.seek[0]:
-                next_segment = math.floor(1000 * args.seek[1] / manifest.segment_time)
-                buffer_contents = []
-                buffer_fcc = 0
-                abr.report_seek(1000 * args.seek[1])
-                args.seek = None
-                rampup_origin = total_play_time
-                rampup_time = None
-        # TODO:  END TODO:  reimplement seeking - currently only proof-of-concept hack
-
-        # do we have space for a new segment on the buffer?
-        full_delay = get_buffer_level() + manifest.segment_time - buffer_size
-        if full_delay > 0:
-            deplete_buffer(full_delay)
-            network.delay(full_delay)
-            abr.report_delay(full_delay)
-            if verbose:
-                print('full buffer delay %d bl=%d' % (full_delay, get_buffer_level()))
-
-        if abandoned_to_quality == None:
-            (quality, delay) = abr.get_quality_delay(next_segment)
-            replace = replacer.check_replace(quality)
-        else:
-            (quality, delay) = (abandoned_to_quality, 0)
-            replace = None
-            abandon_to_quality = None
-
-        if replace != None:
-            delay = 0
-            current_segment = next_segment + replace
-            check_abandon = replacer.check_abandon
-        else:
-            current_segment = next_segment
-            check_abandon = abr.check_abandon
-        if args.no_abandon:
-            check_abandon = None
-
-        size = manifest.segments[current_segment][quality]
-
-        if delay > 0:
-            deplete_buffer(delay)
-            network.delay(delay)
-            if verbose:
-                print('abr delay %d bl=%d' % (delay, get_buffer_level()))
-
-        # print('size %d, current_segment %d, quality %d, buffer_level %d' %
-        #      (size, current_segment, quality, get_buffer_level()))
-
-        download_metric = network.download(size, current_segment, quality,
-                                           get_buffer_level(), check_abandon)
-
-        # print('index %d, quality %d, downloaded %d/%d, time %d=%d+.' %
-        #      (download_metric.index, download_metric.quality,
-        #       download_metric.downloaded, download_metric.size,
-        #       download_metric.time, download_metric.time_to_first_bit))
-
-        if verbose:
-            print('[%d-%d]  %d: q=%d s=%d/%d t=%d=%d+%d ' %
-                  (round(total_play_time), round(total_play_time + download_metric.time),
-                   current_segment, download_metric.quality,
-                   download_metric.downloaded, download_metric.size,
-                   download_metric.time, download_metric.time_to_first_bit,
-                   download_metric.time - download_metric.time_to_first_bit),
-                  end='')
-            if replace == None:
-                if download_metric.abandon_to_quality == None:
-                    print('bl=%d' % get_buffer_level(), end='')
-                else:
-                    print(' ABANDONED to %d - %d/%d bits in %d=%d+%d ttfb+ttdl  bl=%d' %
-                          (download_metric.abandon_to_quality,
-                           download_metric.downloaded, download_metric.size,
-                           download_metric.time, download_metric.time_to_first_bit,
-                           download_metric.time - download_metric.time_to_first_bit,
-                           get_buffer_level()),
-                          end='')
-            else:
-                if download_metric.abandon_to_quality == None:
-                    print(' REPLACEMENT  bl=%d' % get_buffer_level(), end='')
-                else:
-                    print(' REPLACMENT ABANDONED after %d=%d+%d ttfb+ttdl  bl=%d' %
-                          (download_metric.time, download_metric.time_to_first_bit,
-                           download_metric.time - download_metric.time_to_first_bit,
-                           get_buffer_level()),
-                          end='')
-
-        # print('deplete buffer %d' % download_metric.time)
-        deplete_buffer(download_metric.time)
-        if verbose:
-            print('->%d' % get_buffer_level(), end='')
-
-        # update buffer with new download
-        if replace == None:
-            if download_metric.abandon_to_quality == None:
-                buffer_contents += [quality]
-                next_segment += 1
-            else:
-                abandon_to_quality = download_metric.abandon_to_quality
-        else:
-            # abandon_to_quality == None
-            if download_metric.abandon_to_quality == None:
-                if get_buffer_level() + manifest.segment_time * replace >= 0:
-                    buffer_contents[replace] = quality
-                else:
-                    print('WARNING: too late to replace')
-                    pass
-            else:
-                pass
-            # else: do nothing because segment abandonment does not suggest new download
-
-        # if rampup_time == None and download_metric.abandon_to_quality == None:
-        #    if rampup_threshold == None:
-        #        if download_metric.quality >= sustainable_quality:
-        #            rampup_time = download_metric.index * manifest.segment_time
-        #    else:
-        #        if download_metric.quality >= rampup_threshold:
-        #            rampup_time = download_metric.index * manifest.segment_time
-
-        if verbose:
-            print('->%d' % get_buffer_level())
-
-        abr.report_download(download_metric, replace != None)
-
-        # calculate throughput and latency
-        download_time = download_metric.time - download_metric.time_to_first_bit
-        t = download_metric.downloaded / download_time
-        l = download_metric.time_to_first_bit
-
-        # check accuracy of throughput estimate
-        if throughput > t:
-            overestimate_count += 1
-            overestimate_average += (throughput - t - overestimate_average) / overestimate_count
-        else:
-            goodestimate_count += 1
-            goodestimate_average += (t - throughput - goodestimate_average) / goodestimate_count
-        estimate_average += ((throughput - t - estimate_average) /
-                             (overestimate_count + goodestimate_count))
-
-        # update throughput estimate
-        if download_metric.abandon_to_quality == None:
-            throughput_history.push(download_time, t, l)
-
-        # loop while next_segment < len(manifest.segments)
-
-    playout_buffer()
-
-    # multiply by to_time_average to get per/chunk average
-    to_time_average = 1 / (total_play_time / manifest.segment_time)
-    count = len(manifest.segments)
-    time = count * manifest.segment_time + rebuffer_time + startup_time
-    print('buffer size: %d' % buffer_size)
-    print('total played utility: %f' % played_utility)
-    print('time average played utility: %f' % (played_utility * to_time_average))
-    print('total played bitrate: %f' % played_bitrate)
-    print('time average played bitrate: %f' % (played_bitrate * to_time_average))
-    print('total play time: %f' % (total_play_time / 1000))
-    print('total play time chunks: %f' % (total_play_time / manifest.segment_time))
-    print('total rebuffer: %f' % (rebuffer_time / 1000))
-    print('rebuffer ratio: %f' % (rebuffer_time / total_play_time))
-    print('time average rebuffer: %f' % (rebuffer_time / 1000 * to_time_average))
-    print('total rebuffer events: %f' % rebuffer_event_count)
-    print('time average rebuffer events: %f' % (rebuffer_event_count * to_time_average))
-    print('total bitrate change: %f' % total_bitrate_change)
-    print('time average bitrate change: %f' % (total_bitrate_change * to_time_average))
-    print('total log bitrate change: %f' % total_log_bitrate_change)
-    print('time average log bitrate change: %f' % (total_log_bitrate_change * to_time_average))
-    print('time average score: %f' %
-          (to_time_average * (played_utility -
-                              args.gamma_p * rebuffer_time / manifest.segment_time)))
-    if overestimate_count == 0:
-        print('over estimate count: 0')
-        print('over estimate: 0')
-    else:
-        print('over estimate count: %d' % overestimate_count)
-        print('over estimate: %f' % overestimate_average)
-    if goodestimate_count == 0:
-        print('leq estimate count: 0')
-        print('leq estimate: 0')
-    else:
-        print('leq estimate count: %d' % goodestimate_count)
-        print('leq estimate: %f' % goodestimate_average)
-    print('estimate: %f' % estimate_average)
-    if rampup_time == None:
-        print('rampup time: %f' % (len(manifest.segments) * manifest.segment_time / 1000))
-    else:
-        print('rampup time: %f' % (rampup_time / 1000))
-    print('total reaction time: %f' % (total_reaction_time / 1000))
-    print('played queue:', played_queue)
-    osc_sum = 0
-    curr_ele = played_queue[0]
-    for each in played_queue:
-        osc_sum += (each - curr_ele) ** 2
-        curr_ele = each
-    print('oscillation:', osc_sum)
+    run_sabre(args)
