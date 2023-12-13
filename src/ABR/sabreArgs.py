@@ -4,7 +4,7 @@ from dataclasses import dataclass
 class SabreArgs():
     network: str = 'src/ABR/network.json'
     network_multiplier: float = 1
-    movie: str = 'src/ABR/videos/elephants_dream.json'
+    movie: str = 'src/ABR/videos/video1.json'
     movie_length: float = None
     abr: str = 'custom'
     abr_basic: bool = False
