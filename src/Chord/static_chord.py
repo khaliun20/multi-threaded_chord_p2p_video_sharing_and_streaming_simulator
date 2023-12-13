@@ -84,12 +84,12 @@ class ChordNode:
 
             elif message.get('found'):
                 print(f"Node {self.id} received found message. The file is in node: {message['found'][0]} with port id {message['found'][1]}")
-                self.send_message( message['found'][1], {"request_video": "give me this video blah blah",
+                self.send_message( message['found'][1], {"request_video": 'src/ABR/videos/video1.json',
                                                         "origin_port": self.port})
                 print(f"Node {self.id} sent video request message to Node {message['found'][1]}")
 
             elif message.get('request_video'): 
-                sabre_result = self.play_video()
+                sabre_result = self.send_video(video_file = message['request_video'])
                 self.send_message (message['origin_port'], sabre_result)
             else:
                 pass
@@ -110,19 +110,20 @@ class ChordNode_WithVideo(ChordNode):
 
         self.video = Video(video_hash, video_path)
         
-    def play_video(self):
+    def send_video(self, video_file = None):
         from ..ABR.sabre import run_sabre
         from ..ABR.sabreArgs import SabreArgs
         sabre_args = SabreArgs()
+        if video_file:
+            sabre_args.movie = video_file
         return run_sabre(sabre_args)
 
     def produce_json_to_send(self):
         pass
     
-    def send_video(self, dest_port):
-        # filepath = ABR.Chord
-        # create socket connection 
-        # send video file to dest_port
+    def play_video(self, dest_port):
+        
+    
 
         pass
 
@@ -140,7 +141,7 @@ if __name__ == "__main__":
     ports = [PORT + node_id for node_id in nodes]
     m = 7
     node_with_video = 45
-    file_hash = 10
+    file_hash = 42
     file_path = "video.mp4"
     ##############################################
 
@@ -163,7 +164,7 @@ if __name__ == "__main__":
             chord_node = ChordNode_WithVideo(node_id, port, m, successor, file_hash, file_path)
             print(chord_node.video.file_path)
             print(chord_node.video.file_hash)
-            chord_node.play_video()
+            chord_node.send_video()
         else:
             chord_node = ChordNode(node_id, port, m, successor)
         chord_node.initialize_finger_table(nodes, ports)
