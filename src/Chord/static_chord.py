@@ -6,9 +6,6 @@ import time
 import subprocess
 
 
-
-
-
 PORT = 40000
 
 class Video:
@@ -167,6 +164,8 @@ if __name__ == "__main__":
         print(f"Node {node_id} successor is {successor}")
         
         # Pick the node with the file. Here we pick node 80
+        # Marcus: Not sure we need this check:
+                # Hashing should take care of this, we should just atuomaticaly assign the file to a node
         if node_id == node_with_video:
             chord_node = ChordNode_WithVideo(node_id, port, m, successor, file_hash, file_path)
             print(chord_node.video.file_path)
