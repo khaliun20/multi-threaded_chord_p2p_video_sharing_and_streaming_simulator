@@ -4,6 +4,9 @@ import threading
 from pprint import pprint
 import time
 import subprocess
+from flask import Flask, jsonify
+from flask_cors import CORS
+
 
 PORT = 40000
 
@@ -90,11 +93,14 @@ class ChordNode:
 
             elif message.get('request_video'): 
                 sabre_result = self.send_video(video_file = message['request_video'])
-                self.send_message (message['origin_port'], sabre_result)
+                self.send_message(message['origin_port'], sabre_result)
+                # send the result of running sabre.py to Marcus's flask app
+                self.send_message(50001, sabre_result)
+
             else:
                 pass
-            # send to frontend
-            #self.send_message(3500, data)
+
+
 
         client_socket.close()
     
@@ -118,7 +124,9 @@ class ChordNode_WithVideo(ChordNode):
         sabre_args = SabreArgs()
         if video_file:
             sabre_args.movie = video_file
-        return run_sabre(sabre_args)
+        result = run_sabre(sabre_args)
+        return result
+
 
     def produce_json_to_send(self):
         pass

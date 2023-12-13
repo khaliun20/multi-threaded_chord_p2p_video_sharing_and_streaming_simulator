@@ -5,7 +5,7 @@ const WebSocketComponent = () => {
   const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting', 'open', 'closed', 'error'
 
   useEffect(() => {
-    const socket = new WebSocket('ws://localhost:3010');
+    const socket = new WebSocket('ws://localhost:40000');
 
     socket.addEventListener('open', () => {
       setConnectionStatus('open');
@@ -25,7 +25,7 @@ const WebSocketComponent = () => {
     });
 
     return () => {
-      socket.close();
+      // socket.open();
     };
   }, []);
 

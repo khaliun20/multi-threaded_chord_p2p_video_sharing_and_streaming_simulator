@@ -4,6 +4,7 @@ import './video.css';
 import Dropdown from "./dropdown";
 import WebSocketComponent from "./websocket";
 import { PlayFill } from 'react-bootstrap-icons';
+import DataFetcher from "./fetcher";
 
 
 function Video() {
@@ -13,7 +14,7 @@ function Video() {
         <div className="col-lg-8 mx-auto">
           <div className="video-mockup" style={{backgroundColor: 'black'}}>
             <div className="video-content" style={{color: 'white'}}>
-              <WebSocketComponent />
+              <DataFetcher />
             </div>
             <div className="video-controls">
               <Button variant="outline-primary" className="control-item" style={{ backgroundColor: 'transparent', borderColor: 'transparent' }}>
