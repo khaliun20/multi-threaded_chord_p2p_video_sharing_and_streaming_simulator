@@ -2,7 +2,9 @@ import React from 'react';
 import Button from 'react-bootstrap/Button';
 import './video.css';
 import Dropdown from "./dropdown";
+import WebSocketComponent from "./websocket";
 import { PlayFill } from 'react-bootstrap-icons';
+
 
 function Video() {
   return (
@@ -11,7 +13,7 @@ function Video() {
         <div className="col-lg-8 mx-auto">
           <div className="video-mockup" style={{backgroundColor: 'black'}}>
             <div className="video-content" style={{color: 'white'}}>
-              <p>Your text goes here. It can be anything you want to display.</p>
+              <WebSocketComponent />
             </div>
             <div className="video-controls">
               <Button variant="outline-primary" className="control-item" style={{ backgroundColor: 'transparent', borderColor: 'transparent' }}>

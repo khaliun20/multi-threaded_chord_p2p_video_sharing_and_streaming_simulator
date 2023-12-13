@@ -90,9 +90,13 @@ class ChordNode:
 
             elif message.get('request_video'): 
                 sabre_result = self.play_video()
-                self.send_message (message['origin_port'], sabre_result)
+                pass
+
+
             else:
                 pass
+            # send to frontend
+            #self.send_message(3500, data)
             
         client_socket.close()
     
@@ -140,7 +144,7 @@ if __name__ == "__main__":
     ports = [PORT + node_id for node_id in nodes]
     m = 7
     node_with_video = 45
-    file_hash = 10
+    file_hash = 42
     file_path = "video.mp4"
     ##############################################
 
