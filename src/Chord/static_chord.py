@@ -84,7 +84,7 @@ class ChordNode:
 
             elif message.get('found'):
                 print(f"Node {self.id} received found message. The file is in node: {message['found'][0]} with port id {message['found'][1]}")
-                self.send_message( message['found'][1], {"request_video": 'src/ABR/videos/video1.json',
+                self.send_message( message['found'][1], {"request_video": 'src/ABR/videos/manifest-1.json',
                                                         "origin_port": self.port})
                 print(f"Node {self.id} sent video request message to Node {message['found'][1]}")
 
@@ -99,7 +99,7 @@ class ChordNode:
         client_socket.close()
     
     # Send message to other nodes. Sends message and close the connection asap
-    def send_message(self, dest_port, message):
+    def send_message(self, dest_port, message, http=False):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.connect(('localhost', dest_port))
         client_socket.sendall(json.dumps(message).encode('utf-8'))
@@ -124,9 +124,6 @@ class ChordNode_WithVideo(ChordNode):
         pass
     
     def play_video(self, dest_port):
-        
-    
-
         pass
 
     '''
