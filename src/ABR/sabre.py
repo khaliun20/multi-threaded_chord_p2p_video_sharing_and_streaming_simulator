@@ -374,6 +374,7 @@ def run_sabre(args):
         curr_ele = each
     return_dict['oscillation'] = osc_sum / len(played_queue)
     
+    return_dict['bitrates'] = manifest.bitrates
     return return_dict
 
 def load_json(path):
