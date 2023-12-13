@@ -128,6 +128,12 @@ class ChordNode_WithVideo(ChordNode):
 
         pass
 
+    '''
+    Display results on the react dashboard
+    '''
+    def display_results(self):
+        pass
+
 
 
 if __name__ == "__main__":

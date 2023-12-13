@@ -41,8 +41,6 @@ class Network:
         self.used_hashes.append(file_key)
 
 
-        pass
-
 if __name__ == "__main__":
     create_nodes()
     ################ Placeholder ###############
