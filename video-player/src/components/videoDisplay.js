@@ -1,49 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import VideoPlayer from './videoPlayer';
-import Video from './video'; // Import your Video component
+import Video from './video';
 
 const VideoDisplay = () => {
-  const [videoUrls, setVideoUrls] = useState([]);
-  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
+
+  // Assuming you have the video URL pattern like 'http://127.0.0.1:40000/data/{segmentIndex}'
+  const videoUrl = `http://127.0.0.1:40000/data/${currentSegmentIndex}`;
 
   useEffect(() => {
-    const fetchVideoUrls = async () => {
-      try {
-        const response = await fetch('http://your-api-endpoint/videos'); // Replace with your actual API endpoint
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        const data = await response.json();
-        setVideoUrls(data);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching video URLs:', error);
-        setLoading(false);
-        setError(true);
-      }
-    };
-    fetchVideoUrls();
-  }, []);
+    // Load the initial segment
+    loadSegment(currentSegmentIndex);
+  }, [currentSegmentIndex]);
 
-  useEffect(() => {
-    if (videoUrls.length > 0) {
-      const playNextVideo = () => {
-        setCurrentVideoIndex((prevIndex) => (prevIndex + 1) % videoUrls.length);
-      };
-      const intervalId = setInterval(playNextVideo, 5000); // Play the next video every 5 seconds
-      return () => clearInterval(intervalId);
+  const loadSegment = async (segmentIndex) => {
+    try {
+      setLoading(true);
+      setError(false);
+
+      // Make a request for the video segment
+      const response = await fetch(`http://127.0.0.1:40000/data/${segmentIndex}`);
+      console.log(segmentIndex)
+      // const data = await response.json();
+
+      // Additional logic to handle the response, update state, etc.
+
+      setLoading(false);
+    } catch (error) {
+      setError(true);
+      setLoading(false);
+      console.error('Error loading segment:', error);
     }
-  }, [videoUrls]);
+  };
+
+  const handleVideoEnd = () => {
+    // Increment the segment index when the video ends
+    console.log('aaaaa\n\n\n\nend')
+    setCurrentSegmentIndex(currentSegmentIndex + 1);
+  };
 
   const renderVideoContent = () => {
     if (loading || error) {
       return <Video />;
-    } else if (videoUrls.length > 0) {
-      return <VideoPlayer videoUrl={videoUrls[currentVideoIndex]} />;
     } else {
-      return <div>No videos available.</div>;
+      return <VideoPlayer videoUrl={videoUrl} onEnd={handleVideoEnd} />;
     }
   };
 

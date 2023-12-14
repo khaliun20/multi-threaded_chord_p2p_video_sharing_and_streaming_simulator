@@ -85,4 +85,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     network = Network(args.total_nodes, args.m)
     time.sleep(2)
-    network.find_file("video1")
+    network.find_file("manifest")

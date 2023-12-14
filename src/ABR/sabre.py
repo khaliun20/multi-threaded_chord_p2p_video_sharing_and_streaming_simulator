@@ -325,56 +325,56 @@ def run_sabre(args):
     count = len(manifest.segments)
     time = count * manifest.segment_time + rebuffer_time + startup_time
     return_dict = {}
-    return_dict['buffer_size'] = buffer_size
-    return_dict['total_played_utility'] = played_utility
-    return_dict['time_average_played_utility'] = played_utility * to_time_average
-    return_dict['total_played_bitrate'] = played_bitrate
-    return_dict['time_average_played_bitrate'] = played_bitrate * to_time_average
-    return_dict['total_play_time'] = total_play_time / 1000
-    return_dict['total_play_time_chunks'] = total_play_time / manifest.segment_time
-    return_dict['total_rebuffer'] = rebuffer_time / 1000
-    return_dict['rebuffer_ratio'] = rebuffer_time / total_play_time
-    return_dict['time_average_rebuffer'] = rebuffer_time / 1000 * to_time_average
-    return_dict['total_rebuffer_events'] = rebuffer_event_count
-    return_dict['time_average_rebuffer_events'] = rebuffer_event_count * to_time_average
-    return_dict['total_bitrate_change'] = total_bitrate_change
-    return_dict['time_average_bitrate_change'] = total_bitrate_change * to_time_average
-    return_dict['total_log_bitrate_change'] = total_log_bitrate_change
-    return_dict['time_average_log_bitrate_change'] = total_log_bitrate_change * to_time_average
-    return_dict['time_average_score'] = (to_time_average *
-                                         (played_utility -
-                                          args.gamma_p * rebuffer_time / manifest.segment_time))
-    if overestimate_count == 0:
-        return_dict['overestimate_count'] = 0
-        return_dict['overestimate'] = 0
-    else:
-        return_dict['overestimate_count'] = overestimate_count
-        return_dict['overestimate'] = overestimate_average
+    # return_dict['buffer_size'] = buffer_size
+    # return_dict['total_played_utility'] = played_utility
+    # return_dict['time_average_played_utility'] = played_utility * to_time_average
+    # return_dict['total_played_bitrate'] = played_bitrate
+    # return_dict['time_average_played_bitrate'] = played_bitrate * to_time_average
+    # return_dict['total_play_time'] = total_play_time / 1000
+    # return_dict['total_play_time_chunks'] = total_play_time / manifest.segment_time
+    # return_dict['total_rebuffer'] = rebuffer_time / 1000
+    # return_dict['rebuffer_ratio'] = rebuffer_time / total_play_time
+    # return_dict['time_average_rebuffer'] = rebuffer_time / 1000 * to_time_average
+    # return_dict['total_rebuffer_events'] = rebuffer_event_count
+    # return_dict['time_average_rebuffer_events'] = rebuffer_event_count * to_time_average
+    # return_dict['total_bitrate_change'] = total_bitrate_change
+    # return_dict['time_average_bitrate_change'] = total_bitrate_change * to_time_average
+    # return_dict['total_log_bitrate_change'] = total_log_bitrate_change
+    # return_dict['time_average_log_bitrate_change'] = total_log_bitrate_change * to_time_average
+    # return_dict['time_average_score'] = (to_time_average *
+    #                                      (played_utility -
+    #                                       args.gamma_p * rebuffer_time / manifest.segment_time))
+    # if overestimate_count == 0:
+    #     return_dict['overestimate_count'] = 0
+    #     return_dict['overestimate'] = 0
+    # else:
+    #     return_dict['overestimate_count'] = overestimate_count
+    #     return_dict['overestimate'] = overestimate_average
         
-    if goodestimate_count == 0:
-        return_dict['goodestimate_count'] = 0
-        return_dict['goodestimate'] = 0
-    else:
-        return_dict['goodestimate_count'] = goodestimate_count
-        return_dict['goodestimate'] = goodestimate_average
+    # if goodestimate_count == 0:
+    #     return_dict['goodestimate_count'] = 0
+    #     return_dict['goodestimate'] = 0
+    # else:
+    #     return_dict['goodestimate_count'] = goodestimate_count
+    #     return_dict['goodestimate'] = goodestimate_average
     
-    return_dict['estimate'] = estimate_average
+    # return_dict['estimate'] = estimate_average
     
-    if rampup_time == None:
-        return_dict['rampup_time'] = 0
-    else:
-        return_dict['rampup_time'] = rampup_time / 1000
-    return_dict['total_reaction_time'] = total_reaction_time / 1000
+    # if rampup_time == None:
+    #     return_dict['rampup_time'] = 0
+    # else:
+    #     return_dict['rampup_time'] = rampup_time / 1000
+    # return_dict['total_reaction_time'] = total_reaction_time / 1000
     return_dict['played_queue'] = played_queue
     
-    osc_sum = 0
-    curr_ele = played_queue[0]
-    for each in played_queue:
-        osc_sum += (each - curr_ele) ** 2
-        curr_ele = each
-    return_dict['oscillation'] = osc_sum / len(played_queue)
+    # osc_sum = 0
+    # curr_ele = played_queue[0]
+    # for each in played_queue:
+    #     osc_sum += (each - curr_ele) ** 2
+    #     curr_ele = each
+    # return_dict['oscillation'] = osc_sum / len(played_queue)
     
-    return_dict['bitrates'] = manifest.bitrates
+    # return_dict['bitrates'] = manifest.bitrates
     return return_dict
 
 def load_json(path):

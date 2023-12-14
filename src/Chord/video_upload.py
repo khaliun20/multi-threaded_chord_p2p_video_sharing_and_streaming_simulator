@@ -1,8 +1,8 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 import socket
 import threading
-import time
+import json
 
 app = Flask(__name__)
 CORS(app)
@@ -10,12 +10,34 @@ CORS(app)
 data = []
 data_lock = threading.Lock()
 socket_server_ready = threading.Event()  # Event to signal when socket server is ready
+global indx
+indx = 0
 
-@app.route('/data')
-def send_data():
-    # with data_lock:
-    print(data, 'why no work')
-    return jsonify({"data received": [d.decode() for d in data]})
+@app.route('/data/<segment>')
+def send_data(segment):
+    dic = {0: 50, 1:100, 2:200, 3:500, 4:1000}
+    with data_lock:
+        # return jsonify({"data received": [d.decode() for d in data]})
+        for d in data:
+            data_dict = json.loads(d.decode())
+            played_queue_list = data_dict.get("played_queue", [])
+            # print(played_queue_list)
+    print(played_queue_list)
+    global indx
+    indx = int(segment)
+    bitrate = dic[played_queue_list[int(indx)]]
+    segment = str(indx).zfill(3)
+    video_path = f'videos/video1/{bitrate}/output_{segment}.mp4'
+    print(video_path)
+    return send_from_directory('.', video_path)
+    
+
+    
+@app.route('/video/<bitrate>/<segment>')
+def get_video_segment(bitrate, segment):
+    video_path = f'videos/video1/{bitrate}/output_{segment}.mp4'
+    return send_from_directory('.', video_path)
+
 
 def run_flask():
     # Wait for the socket server thread to be ready

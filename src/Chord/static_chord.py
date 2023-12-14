@@ -65,7 +65,7 @@ class ChordNode:
 
             elif message.get('found'):
                 print(f"Node {self.id} received found message. The file is in node: {message['found'][0]} with port id {message['found'][1]}")
-                self.send_message(message['found'][1], {"request_video": 'src/ABR/videos/manifest-1.json',
+                self.send_message(message['found'][1], {"request_video": 'src/ABR/videos/manifest.json',
                                                         "origin_port": self.port})
                 print(f"Node {self.id} sent video request message to Node {message['found'][1]}")
 
