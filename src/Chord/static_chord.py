@@ -4,8 +4,6 @@ import threading
 from pprint import pprint
 import time
 import subprocess
-from flask import Flask, jsonify
-from flask_cors import CORS
 
 
 PORT = 40000
@@ -16,12 +14,13 @@ class Video:
         self.file_path = file_path
 
 class ChordNode:
-    def __init__(self, node_id, port, m, successor=None):
+    def __init__(self, node_id, port, successor=None):
         self.id = node_id
         self.port = port
         self.finger_table = {}
-        self.m = m
         self.successor = successor
+        self.videos = []
+
 
     def initialize_finger_table(self, nodes, ports):
         for i in range(self.m):
@@ -41,12 +40,15 @@ class ChordNode:
     # Note: I think this is able to identify a file between 16 and 112, not 0 and 2^7. 
     def find_successor(self, key, origin_port):
         if self.id < key <= self.successor[0]:
-            threading.Thread(target=self.send_message, args=(origin_port, {'found': self.successor})).start()
-
+            threading.Thread(target=self.send_message, args=(origin_port, {'found': self.successor[0]})).start()
+            # TODO: send file to origin (ABR)
+            # self.video_play()
+            # self.send_video_result(origin_port)
+            # send.send_video(self, origin_port)
         else:
             preceding_node = self.closest_preceding_node(key)
             threading.Thread(target=self.send_message, args=(preceding_node[1], {'key': key, 'origin_port': origin_port})).start()
-    
+
     def closest_preceding_node(self, key):
         for lookup in reversed(self.finger_table.keys()):
             node_id = self.finger_table[lookup][0]
@@ -91,7 +93,7 @@ class ChordNode:
                                                         "origin_port": self.port})
                 print(f"Node {self.id} sent video request message to Node {message['found'][1]}")
 
-            elif message.get('request_video'): 
+            elif message.get('request_video'):
                 sabre_result = self.send_video(video_file = message['request_video'])
                 self.send_message(message['origin_port'], sabre_result)
                 # send the result of running sabre.py to Marcus's flask app
@@ -99,8 +101,6 @@ class ChordNode:
 
             else:
                 pass
-
-
 
         client_socket.close()
     
@@ -111,12 +111,6 @@ class ChordNode:
         client_socket.sendall(json.dumps(message).encode('utf-8'))
         print(f"Node {self.id} sent message to Node {dest_port - PORT}: {message}")
         client_socket.close()
-
-class ChordNode_WithVideo(ChordNode):
-    def __init__(self, node_id, port, m, successor=None, video_hash = None, video_path = None):
-        super().__init__(node_id, port, m, successor)
-
-        self.video = Video(video_hash, video_path)
         
     def send_video(self, video_file = None):
         from ..ABR.sabre import run_sabre
@@ -145,7 +139,6 @@ if __name__ == "__main__":
     ################ Placeholder ###############
     # We can make the nodes CLI later on
     nodes = [16, 32, 45, 80, 96, 112]
-    ports = [PORT + node_id for node_id in nodes]
     m = 7
     node_with_video = 45
     file_hash = 42
@@ -180,7 +173,7 @@ if __name__ == "__main__":
         # Start nodes
         threading.Thread(target=chord_node.start_server).start()
         chord_nodes.append(chord_node)
-    
+
     time.sleep(2)
 
     # Simulation starts here
