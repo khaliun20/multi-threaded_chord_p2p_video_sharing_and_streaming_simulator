@@ -73,7 +73,7 @@ class ChordNode:
                 sabre_result = self.send_video(video_file = message['request_video'])
                 self.send_message(message['origin_port'], sabre_result)
                 # send the result of running sabre.py to Marcus's flask app
-                self.send_message(50001, sabre_result)
+                self.send_message(50002, sabre_result)
 
             else:
                 pass
