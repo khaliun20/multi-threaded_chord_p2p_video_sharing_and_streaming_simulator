@@ -64,10 +64,7 @@ class Network:
 
     def hash_file(self, filename):
         file_key = consistent_hash(filename, self.m)
-        max_key = self.node_ids[-1]
-        min_key = self.node_ids[0]
-        # no more bug!
-        while file_key in self.used_hashes and file_key > max_key and file_key < min_key:
+        while file_key in self.used_hashes:
             file_key = consistent_hash(random_string(), self.m)
         self.used_hashes.append(file_key)
         return file_key
