@@ -74,7 +74,6 @@ class Network:
         hashed_file = self.hash_file(filename)
         finder.find_successor(hashed_file, finder.port)
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Chord Network')
     parser.add_argument('--total_nodes', type=int, default=6, help='total number of nodes in the network')
