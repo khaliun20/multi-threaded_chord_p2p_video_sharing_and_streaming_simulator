@@ -16,16 +16,16 @@ function Video() {
             <div className="video-content" style={{color: 'white'}}>
               <DataFetcher />
             </div>
-            <div className="video-controls">
-              <Button variant="outline-primary" className="control-item" style={{ backgroundColor: 'transparent', borderColor: 'transparent' }}>
-                <PlayFill color="white"/>
-              </Button>
+              <div className="video-controls">
+                <Button variant="outline-primary" className="control-item" style={{ backgroundColor: 'transparent', borderColor: 'transparent' }}>
+                  <PlayFill color="white"/>
+                </Button>
+                <Dropdown />
+              </div>
             </div>
-            <Dropdown />
           </div>
         </div>
       </div>
-    </div>
   );
 }
 
