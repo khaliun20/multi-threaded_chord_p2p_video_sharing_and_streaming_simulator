@@ -21,7 +21,7 @@ def run_flask():
     # Wait for the socket server thread to be ready
     socket_server_ready.wait()
     print(data)  # Now, the socket server thread has added data
-    app.run(debug=True, port=40000, use_reloader=True)
+    app.run(debug=True, port=40000, use_reloader=False)
 
 def run_socket_server(data):
     listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

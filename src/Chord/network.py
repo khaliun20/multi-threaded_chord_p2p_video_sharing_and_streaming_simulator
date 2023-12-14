@@ -1,5 +1,9 @@
-from utils import random_string, consistent_hash
-from ChordNode import ChordNode
+from .utils import random_string, consistent_hash
+from .static_chord import ChordNode
+import threading
+import time
+
+import argparse
 
 PORT = 40000
 
@@ -10,58 +14,75 @@ class Network:
     in a full chord implementation this would not be needed
     """
     def __init__(self, total_nodes, m):
-        self.total_nodes = total_nodes
         self.m = m
-        self.nodes = self.create_nodes()
-        self.create_tables()
         self.used_hashes = []
+        self.nodes = self.create_nodes(total_nodes)
+        self.node_ids = [node.id for node in self.nodes]
+        self.ports = self.create_ports()
+        self.create_tables()
+        self.assign_successors()
+        self.start_nodes()
+        [print(node.finger_table) for node in self.nodes]
 
-
-    def create_nodes(self):
+    def create_nodes(self, total_nodes):
         nodes = []
-        for i in range(self.total_nodes):
-            id = consistent_hash(random_string(), 8)
-            while id in self.used_hashes:
-                id = consistent_hash(random_string(), 8)
-            self.used_hashes.append(id)
-            nodes.append(ChordNode(id, self.m))
+        for i in range(total_nodes):
+            node_id = consistent_hash(random_string(), self.m)
+            while node_id in self.used_hashes:
+                node_id = consistent_hash(random_string(), self.m)
+            self.used_hashes.append(node_id)
+            nodes.append(ChordNode(node_id, PORT + node_id, self.m))
+        nodes.sort(key=lambda x: x.id)
         return nodes
 
-    def create_tables(self):
-        for node in self.nodes:
-            node.create_finger_table()
+    def create_ports(self):
+        return [PORT + node_id.id for node_id in self.nodes]
 
-    def upload_file(self, file_name):
-        """
-        add a file to the network
-        """
-        file_key = consistent_hash(file_name, 8)
-        while file_key in self.used_hashes:
-            file_key = consistent_hash(random_string(), 8)
+    def create_tables(self):
+        for k in range(len(self.node_ids)):
+            for i in range(self.m):
+                entry_id = (self.node_ids[k] + 2 ** i) % (2 ** self.m)
+                self.nodes[k].finger_table[entry_id] = self.find_value(entry_id)
+    def find_value(self, key):
+        for node_id, port in zip(self.node_ids, self.ports):
+            if node_id >= key:
+                return node_id, port
+        # If not found, return the first node (wrap-around)
+        return self.node_ids[0], self.ports[0]
+
+    def assign_successors(self):
+        for i in range(len(self.nodes)):
+            if i == len(self.nodes) - 1:
+                successor = self.nodes[0]
+            else:
+                successor = self.nodes[i + 1]
+            self.nodes[i].successor = successor
+
+    def start_nodes(self):
+        for node in self.nodes:
+            threading.Thread(target=node.start_server).start()
+
+    def hash_file(self, filename):
+        file_key = consistent_hash(filename, self.m)
+        max_key = self.node_ids[-1]
+        min_key = self.node_ids[0]
+        # no more bug!
+        while file_key in self.used_hashes and file_key > max_key and file_key < min_key:
+            file_key = consistent_hash(random_string(), self.m)
         self.used_hashes.append(file_key)
+        return file_key
+
+    def find_file(self, filename):
+        finder = self.nodes[1]
+        hashed_file = self.hash_file(filename)
+        finder.find_successor(hashed_file, finder.port)
 
 
 if __name__ == "__main__":
-    create_nodes()
-    ################ Placeholder ###############
-    # Use consistent hashing and CLI
-    nodes = [16, 32, 45, 80, 96, 112]
-    ports = [PORT + node_id for node_id in nodes]
-    m = 7
-    node_with_video = 45
-    file_hash = 42
-    file_path = "video.mp4"
-    #############################################
-
-    for i in range(len(nodes)):
-        node_id = nodes[i]
-        port = ports[i]
-        # Assigning immediate successors
-        if i == len(nodes) - 1:
-            successor = (nodes[0], ports[0])
-        else:
-            successor = (nodes[i + 1], ports[i + 1])
-
-        if  node_id == node_with_video:
-            chord_node = ChordNode_WithVideo(node_id, port, m, successor, file_hash, file_path)
-            chord_node.play_video()
+    parser = argparse.ArgumentParser(description='Chord Network')
+    parser.add_argument('--total_nodes', type=int, default=6, help='total number of nodes in the network')
+    parser.add_argument('--m', type=int, default=7, help='size of the ring')
+    args = parser.parse_args()
+    network = Network(args.total_nodes, args.m)
+    time.sleep(2)
+    network.find_file("video1")
