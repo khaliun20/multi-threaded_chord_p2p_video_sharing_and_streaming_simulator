@@ -1,17 +1,8 @@
 import socket
 import json
 import threading
-from pprint import pprint
 import time
-import subprocess
 
-
-PORT = 40000
-
-class Video:
-    def __init__(self, file_hash, file_path):
-        self.file_hash = file_hash
-        self.file_path = file_path
 
 class ChordNode:
     def __init__(self, node_id, port, successor=None):
@@ -21,26 +12,11 @@ class ChordNode:
         self.successor = successor
         self.videos = []
 
-
-    def initialize_finger_table(self, nodes, ports):
-        for i in range(self.m):
-            entry_id = (self.id + 2**i) % (2**self.m)
-            self.finger_table[entry_id] = self.find_value(nodes, ports, entry_id)
-    
-    # Populate finger table of new node
-    def find_value(self, nodes, ports, key):
-        for i in range(len(nodes)):
-            successor_id = (nodes[i] + 2**self.m) % (2**self.m)
-            if key <= successor_id:
-                return (nodes[i], ports[i])
-            if key > nodes[-1]:
-                return (nodes[0], ports[0])
-        return (nodes[i], ports[i])
     
     # Note: I think this is able to identify a file between 16 and 112, not 0 and 2^7. 
     def find_successor(self, key, origin_port):
-        if self.id < key <= self.successor[0]:
-            threading.Thread(target=self.send_message, args=(origin_port, {'found': self.successor[0]})).start()
+        if self.id < key <= self.successor.id:
+            threading.Thread(target=self.send_message, args=(origin_port, {'found': (self.successor.id, self.successor.port)})).start()
             # TODO: send file to origin (ABR)
             # self.video_play()
             # self.send_video_result(origin_port)
@@ -52,7 +28,7 @@ class ChordNode:
     def closest_preceding_node(self, key):
         for lookup in reversed(self.finger_table.keys()):
             node_id = self.finger_table[lookup][0]
-            #print(f'checking finger table entry: {self.finger_table[lookup]} in range {self.id} - {key}')
+            # print(f'checking finger table entry: {self.finger_table[lookup]} in range {self.id} - {key}')
             if self.id < key:
                 if self.id < node_id < key:
                     return self.finger_table[lookup]
@@ -89,7 +65,7 @@ class ChordNode:
 
             elif message.get('found'):
                 print(f"Node {self.id} received found message. The file is in node: {message['found'][0]} with port id {message['found'][1]}")
-                self.send_message( message['found'][1], {"request_video": 'src/ABR/videos/manifest-1.json',
+                self.send_message(message['found'][1], {"request_video": 'src/ABR/videos/manifest-1.json',
                                                         "origin_port": self.port})
                 print(f"Node {self.id} sent video request message to Node {message['found'][1]}")
 
@@ -109,7 +85,7 @@ class ChordNode:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.connect(('localhost', dest_port))
         client_socket.sendall(json.dumps(message).encode('utf-8'))
-        print(f"Node {self.id} sent message to Node {dest_port - PORT}: {message}")
+        print(f"Node {self.id} sent message to Node {dest_port - 40000}: {message}")
         client_socket.close()
         
     def send_video(self, video_file = None):
@@ -121,62 +97,11 @@ class ChordNode:
         result = run_sabre(sabre_args)
         return result
 
-
     def produce_json_to_send(self):
         pass
     
     def play_video(self, dest_port):
         pass
 
-    '''
-    Display results on the react dashboard
-    '''
-    def display_results(self):
-        pass
-
-if __name__ == "__main__":
-    
-    ################ Placeholder ###############
-    # We can make the nodes CLI later on
-    nodes = [16, 32, 45, 80, 96, 112]
-    m = 7
-    node_with_video = 45
-    file_hash = 42
-    file_path = "video.mp4"
-    ##############################################
-
-    chord_nodes = []
-
-    # Initialize nodes
-    for i in range(len(nodes)):
-        node_id = nodes[i]
-        port = ports[i]
-        if i == len(nodes) - 1:
-            successor = (nodes[0], ports[0])
-        else:
-            successor = (nodes[i + 1], ports[i + 1])
-        print(f"Node {node_id} successor is {successor}")
-        
-        # Pick the node with the file. Here we pick node 80
-        # Marcus: Not sure we need this check:
-                # Hashing should take care of this, we should just atuomaticaly assign the file to a node
-        if node_id == node_with_video:
-            chord_node = ChordNode_WithVideo(node_id, port, m, successor, file_hash, file_path)
-            print(chord_node.video.file_path)
-            print(chord_node.video.file_hash)
-            chord_node.send_video()
-        else:
-            chord_node = ChordNode(node_id, port, m, successor)
-        chord_node.initialize_finger_table(nodes, ports)
-        print(f"Node {chord_node.id} initialized finger table: {chord_node.finger_table}")
-        
-        # Start nodes
-        threading.Thread(target=chord_node.start_server).start()
-        chord_nodes.append(chord_node)
-
-    time.sleep(2)
-
-    # Simulation starts here
-    chord_nodes[5].find_successor(file_hash, chord_nodes[5].port)
 
    
