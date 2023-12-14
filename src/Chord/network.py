@@ -31,7 +31,7 @@ class Network:
             while node_id in self.used_hashes:
                 node_id = consistent_hash(random_string(), self.m)
             self.used_hashes.append(node_id)
-            nodes.append(ChordNode(node_id, PORT + node_id, self.m))
+            nodes.append(ChordNode(node_id, PORT + node_id, m = self.m))
         nodes.sort(key=lambda x: x.id)
         return nodes
 
