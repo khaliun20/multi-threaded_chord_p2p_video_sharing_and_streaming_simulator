@@ -6,6 +6,7 @@ import time
 import argparse
 
 PORT = 40000
+VIDEO_TO_FIND = "src/ABR/videos/manifest-1.json"
 
 
 class Network:
@@ -72,7 +73,7 @@ class Network:
     def find_file(self, filename):
         finder = self.nodes[1]
         hashed_file = self.hash_file(filename)
-        finder.find_successor(hashed_file, finder.port)
+        finder.find_successor(hashed_file, finder.port, filename)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Chord Network')
@@ -81,4 +82,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     network = Network(args.total_nodes, args.m)
     time.sleep(2)
-    network.find_file("video1")
+
+    network.find_file(VIDEO_TO_FIND)

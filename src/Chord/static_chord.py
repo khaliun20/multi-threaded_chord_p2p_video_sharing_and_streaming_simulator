@@ -19,17 +19,14 @@ class ChordNode:
             relative_id += 2**self.m
         return relative_id
 
-    def find_successor(self, key, origin_port):
+    
+    def find_successor(self, key, origin_port, filename):
         if self.compute_relative_id(self.id) < self.compute_relative_id(key) <= self.compute_relative_id(self.successor.id):
-            threading.Thread(target=self.send_message, args=(origin_port, {'found': (self.successor.id, self.successor.port)})).start()
-            # TODO: send file to origin (ABR)
-            # self.video_play()
-            # self.send_video_result(origin_port)
-            # send.send_video(self, origin_port)
+            threading.Thread(target=self.send_message, args=(origin_port, {'found': (self.successor.id, self.successor.port, filename)})).start()
         else:
             preceding_node = self.closest_preceding_node(key)
-            threading.Thread(target=self.send_message, args=(preceding_node[1], {'key': key, 'origin_port': origin_port})).start()
-
+            threading.Thread(target=self.send_message, args=(preceding_node[1], {'key': key, 'origin_port': origin_port, 'file': filename})).start()
+    
     def closest_preceding_node(self, key):
         for lookup in reversed(self.finger_table.keys()):
             node_id = self.finger_table[lookup][0]
@@ -57,20 +54,29 @@ class ChordNode:
 
     # Once the communication is established, handle the connection and close it asap 
     def handle_connection(self, client_socket, addr):
-        client_ip, client_port = addr
         while True: 
-            data = client_socket.recv(2048).decode('utf-8')
+            try:
+                data = client_socket.recv(2048).decode('utf-8')
+            except (socket.error, ConnectionResetError) as e:
+                print(f"Error receiving data from the client: {e}")
+                break
+
             if not data:
                 break
-            #process_video(data)
-            message = json.loads(data)
+            
+            try:
+                message = json.loads(data)
+            except json.JSONDecodeError as e:
+                print(f"Error decoding JSON data: {e}")
+                break
+            
             if message.get('key'):
                 print(f"Node {self.id} received message: {message['key']}")
-                self.find_successor(key=message['key'], origin_port=message['origin_port']) 
+                self.find_successor(key=message['key'], origin_port=message['origin_port'], filename =message['file']) 
 
             elif message.get('found'):
                 print(f"Node {self.id} received found message. The file is in node: {message['found'][0]} with port id {message['found'][1]}")
-                self.send_message(message['found'][1], {"request_video": 'src/ABR/videos/manifest-1.json',
+                self.send_message(message['found'][1], {"request_video": message['found'][2],
                                                         "origin_port": self.port})
                 print(f"Node {self.id} sent video request message to Node {message['found'][1]}")
 
@@ -82,17 +88,21 @@ class ChordNode:
 
             else:
                 pass
-
+            
         client_socket.close()
     
     # Send message to other nodes. Sends message and close the connection asap
     def send_message(self, dest_port, message, http=False):
         print(f"Node {self.id} attempts to sent message to Node {dest_port - 40000}: {message}")
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect(('localhost', dest_port))
-        client_socket.sendall(json.dumps(message).encode('utf-8'))
-        print(f"Node {self.id} sent message to Node {dest_port - 40000}: {message}")
-        client_socket.close()
+        try: 
+            client_socket.connect(('localhost', dest_port))
+            client_socket.sendall(json.dumps(message).encode('utf-8'))
+            print(f"Node {self.id} sent message to Node {dest_port - 40000}: {message}")
+        except (socket.error, ConnectionResetError) as e:
+            print(f"Connection to port {dest_port} refused. Server not available. Exception {e} thrown")
+        finally:
+            client_socket.close()
         
     def send_video(self, video_file = None):
         from ..ABR.sabre import run_sabre
@@ -102,12 +112,6 @@ class ChordNode:
             sabre_args.movie = video_file
         result = run_sabre(sabre_args)
         return result
-
-    def produce_json_to_send(self):
-        pass
-    
-    def play_video(self, dest_port):
-        pass
 
 
    
