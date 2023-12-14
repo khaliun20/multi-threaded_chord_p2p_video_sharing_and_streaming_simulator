@@ -3,19 +3,24 @@ import json
 import threading
 import time
 
-
 class ChordNode:
-    def __init__(self, node_id, port, successor=None):
+    def __init__(self, node_id, port, m=7, successor=None):
         self.id = node_id
         self.port = port
         self.finger_table = {}
         self.successor = successor
         self.videos = []
+        self.m = m 
 
-    
-    # Note: I think this is able to identify a file between 16 and 112, not 0 and 2^7. 
+    def compute_relative_id(self, id):
+        "treat the current node as 0, and find the relative ID of id on the circle"
+        relative_id = (id - self.id)
+        if relative_id < 0:
+            relative_id += 2**self.m
+        return relative_id
+
     def find_successor(self, key, origin_port):
-        if self.id < key <= self.successor.id:
+        if self.compute_relative_id(self.id) < self.compute_relative_id(key) <= self.compute_relative_id(self.successor.id):
             threading.Thread(target=self.send_message, args=(origin_port, {'found': (self.successor.id, self.successor.port)})).start()
             # TODO: send file to origin (ABR)
             # self.video_play()
@@ -82,6 +87,7 @@ class ChordNode:
     
     # Send message to other nodes. Sends message and close the connection asap
     def send_message(self, dest_port, message, http=False):
+        print(f"Node {self.id} attempts to sent message to Node {dest_port - 40000}: {message}")
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.connect(('localhost', dest_port))
         client_socket.sendall(json.dumps(message).encode('utf-8'))
