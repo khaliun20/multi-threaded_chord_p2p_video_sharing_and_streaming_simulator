@@ -1,6 +1,6 @@
 Play a video stored on a distributed Chord network!
 
-The user needs to run three processes. Process 1 initializes the Chord network, and sets up the nodes to continually listen to one another. Process 2 runs the video player. Process 3 implements port-forwarding from the Chord network to the video player. We found we had to do this because we implemented Chord using TCP sockets, but the video player uses a React websocket. CLI commands are as follows:
+The user needs to run three processes. Process 1 implements port-forwarding from the Chord network to the video player. We found we had to do this because we implemented Chord using TCP sockets, but the video player uses a React websocket. Process 2 runs the video player. Process 3 initializes the Chord network, and sets up the nodes to continually listen to one another and find files in Chord in log(N) time. CLI commands are as follows:
 
 **Process 1: Port Forwarding between 2 and 3**
 `python -m src.Chord.video_upload`
