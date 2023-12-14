@@ -6,6 +6,7 @@ import time
 import argparse
 
 PORT = 40000
+VIDEO_TO_FIND = "src/ABR/videos/manifest.json"
 
 
 class Network:
@@ -31,7 +32,7 @@ class Network:
             while node_id in self.used_hashes:
                 node_id = consistent_hash(random_string(), self.m)
             self.used_hashes.append(node_id)
-            nodes.append(ChordNode(node_id, PORT + node_id, self.m))
+            nodes.append(ChordNode(node_id, PORT + node_id, m = self.m))
         nodes.sort(key=lambda x: x.id)
         return nodes
 
@@ -64,10 +65,7 @@ class Network:
 
     def hash_file(self, filename):
         file_key = consistent_hash(filename, self.m)
-        max_key = self.node_ids[-1]
-        min_key = self.node_ids[0]
-        # no more bug!
-        while file_key in self.used_hashes and file_key > max_key and file_key < min_key:
+        while file_key in self.used_hashes:
             file_key = consistent_hash(random_string(), self.m)
         self.used_hashes.append(file_key)
         return file_key
@@ -75,8 +73,7 @@ class Network:
     def find_file(self, filename):
         finder = self.nodes[1]
         hashed_file = self.hash_file(filename)
-        finder.find_successor(hashed_file, finder.port)
-
+        finder.find_successor(hashed_file, finder.port, filename)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Chord Network')
@@ -85,4 +82,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     network = Network(args.total_nodes, args.m)
     time.sleep(2)
-    network.find_file("manifest")
+
+    network.find_file(VIDEO_TO_FIND)
