@@ -15,7 +15,7 @@ def send_data():
         return jsonify({"data received": [d.decode() for d in data]})
 
 def run_flask():
-    app.run(debug=True, port=40000, use_reloader=True)
+    app.run(debug=True, port=40000, use_reloader=False)
 
 def run_socket_server(data):
     listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
