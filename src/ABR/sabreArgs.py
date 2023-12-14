@@ -4,7 +4,7 @@ from dataclasses import dataclass
 class SabreArgs():
     network: str = 'src/ABR/network.json'
     network_multiplier: float = 1
-    movie: str = 'src/ABR/videos/video1.json'
+    movie: str = 'src/ABR/videos/manifest.json'
     movie_length: float = None
     abr: str = 'custom'
     abr_basic: bool = False
@@ -19,4 +19,4 @@ class SabreArgs():
     max_buffer: float = 25
     no_abandon: bool = False
     rampup_threshold: int = None
-    verbose: bool = False
+    verbose: bool = True
